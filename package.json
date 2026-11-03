@@ -13,8 +13,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "pretest": "npm run lint",
-    "build": "tsc"
+    "pretest": "npm run lint && npm run typecheck",
+    "build": "tsc",
+    "test": "node --enable-source-maps --import=@poppinss/ts-exec bin/test.ts"
   },
   "devDependencies": {
     "@adonisjs/ally": "^6.3.2",
@@ -22,6 +23,9 @@
     "@adonisjs/eslint-config": "^3.1.0",
     "@adonisjs/prettier-config": "^1.5.0",
     "@adonisjs/tsconfig": "^2.0.0",
+    "@japa/assert": "^4.2.0",
+    "@japa/runner": "^5.4.0",
+    "@poppinss/ts-exec": "^1.5.1",
     "@swc/core": "^1.16.21",
     "eslint": "^10.14.0",
     "prettier": "^3.9.10",
