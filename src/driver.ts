@@ -7,134 +7,11 @@ import type {
   RedirectRequestContract,
 } from '@adonisjs/ally/types'
 import type { HttpContext } from '@adonisjs/core/http'
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
-import {
-  E_ENTRA_INVALID_CONFIG,
-  E_ENTRA_INVALID_ID_TOKEN,
-  E_ENTRA_TENANT_NOT_ALLOWED,
-} from './errors.js'
+import { assertValidConfig, LOGIN_URL } from './config.js'
+import { verifyIdToken } from './id_token.js'
+import type { EntraAccessToken, EntraConfig, EntraScopes, EntraUser } from './types.js'
 
-const LOGIN_URL = 'https://login.microsoftonline.com'
 const GRAPH_ME_URL = 'https://graph.microsoft.com/v1.0/me'
-
-/**
- * Authorities accepting accounts from several tenants.
- */
-const SHARED_AUTHORITIES = ['common', 'organizations', 'consumers']
-const TENANT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/**
- * Tolerated difference between this server clock and the Microsoft one.
- */
-const CLOCK_TOLERANCE_SECONDS = 60
-
-/**
- * Claims of an ID token that passed validation.
- */
-export type EntraIdTokenClaims = JWTPayload & {
-  tid: string
-  oid?: string
-  name?: string
-  email?: string
-  preferred_username?: string
-  roles?: string[]
-  groups?: string[]
-  hasgroups?: boolean
-  _claim_names?: { groups?: string }
-}
-
-/**
- * Tokens returned by Microsoft, with the validated ID token claims.
- */
-export type EntraAccessToken = {
-  token: string
-  type: string
-  expiresIn?: number
-  expiresAt?: Date
-  /**
-   * Only returned when the `offline_access` scope is requested.
-   */
-  refreshToken?: string
-  scope?: string
-  id_token: string
-  idTokenClaims: EntraIdTokenClaims
-}
-
-export type EntraScopes = string
-
-export type EntraConfig = {
-  clientId: string
-  clientSecret: string
-  callbackUrl: string
-  /**
-   * The Directory (tenant) ID as a GUID, to accept a single tenant. Or one of
-   * `common`, `organizations` and `consumers`, which require `allowedTenants`.
-   */
-  tenantId: string
-  /**
-   * The tenant IDs accepted when `tenantId` is a shared authority.
-   */
-  allowedTenants?: string[]
-  authorizeUrl?: string
-  accessTokenUrl?: string
-  userInfoUrl?: string
-}
-
-/**
- * Fields added to the Ally user from the validated ID token.
- */
-export type EntraUserFields = {
-  tenantId: string
-  /**
-   * App roles assigned to the user.
-   */
-  roles: string[]
-  /**
-   * Group IDs, when the app registration is configured to emit them.
-   */
-  groups: string[]
-  /**
-   * When true, the user has too many groups for the token: `groups` is
-   * incomplete and must not be used to make an access decision.
-   */
-  hasGroupsOverage: boolean
-}
-
-export type EntraUser = AllyUserContract<EntraAccessToken> & EntraUserFields
-
-function assertValidConfig({ tenantId, allowedTenants }: EntraConfig) {
-  const isSharedAuthority = SHARED_AUTHORITIES.includes(tenantId)
-
-  if (!isSharedAuthority && !TENANT_ID_PATTERN.test(tenantId)) {
-    throw new E_ENTRA_INVALID_CONFIG([
-      `"tenantId" must be a tenant GUID or one of ${SHARED_AUTHORITIES.join(', ')}`,
-    ])
-  }
-  if (isSharedAuthority && !allowedTenants?.length) {
-    throw new E_ENTRA_INVALID_CONFIG([`"allowedTenants" is required with "${tenantId}"`])
-  }
-  if (!isSharedAuthority && allowedTenants) {
-    throw new E_ENTRA_INVALID_CONFIG(['"allowedTenants" requires a shared "tenantId" authority'])
-  }
-  if (allowedTenants?.some((tenant) => !TENANT_ID_PATTERN.test(tenant))) {
-    throw new E_ENTRA_INVALID_CONFIG(['"allowedTenants" must only contain tenant GUIDs'])
-  }
-}
-
-/**
- * Microsoft signing keys are kept across requests, since a driver instance
- * only lives for one request.
- */
-const signingKeys = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
-
-function getSigningKeys(tenantId: string) {
-  let keys = signingKeys.get(tenantId)
-  if (!keys) {
-    keys = createRemoteJWKSet(new URL(`${LOGIN_URL}/${tenantId}/discovery/v2.0/keys`))
-    signingKeys.set(tenantId, keys)
-  }
-  return keys
-}
 
 /**
  * Ally driver for Microsoft Entra ID.
@@ -215,47 +92,14 @@ export class EntraDriver
    */
   async accessToken(callback?: (request: ApiRequestContract) => void) {
     const token = await super.accessToken(callback)
-    return { ...token, idTokenClaims: await this.verifyIdToken(token.id_token) }
-  }
+    const idTokenClaims = await verifyIdToken(token.id_token, {
+      clientId: this.config.clientId,
+      tenantId: this.config.tenantId,
+      allowedTenants: this.config.allowedTenants,
+      nonce: this.#nonce,
+    })
 
-  /**
-   * Checks the signature, audience, expiry, issuer, nonce and tenant.
-   */
-  protected async verifyIdToken(idToken: unknown): Promise<EntraIdTokenClaims> {
-    if (typeof idToken !== 'string' || !idToken) {
-      throw new E_ENTRA_INVALID_ID_TOKEN(['Microsoft returned none, keep the "openid" scope'])
-    }
-
-    let claims: JWTPayload
-    try {
-      const verified = await jwtVerify(idToken, getSigningKeys(this.config.tenantId), {
-        audience: this.config.clientId,
-        algorithms: ['RS256'],
-        clockTolerance: CLOCK_TOLERANCE_SECONDS,
-        requiredClaims: ['exp', 'iss', 'tid'],
-      })
-      claims = verified.payload
-    } catch (error) {
-      throw new E_ENTRA_INVALID_ID_TOKEN([(error as Error).message], { cause: error })
-    }
-
-    const tenantId = claims.tid
-    if (typeof tenantId !== 'string' || claims.iss !== `${LOGIN_URL}/${tenantId}/v2.0`) {
-      throw new E_ENTRA_INVALID_ID_TOKEN(['unexpected issuer'])
-    }
-    if (!this.#nonce || claims.nonce !== this.#nonce) {
-      throw new E_ENTRA_INVALID_ID_TOKEN(['unexpected nonce'])
-    }
-    if (!this.#isTenantAllowed(tenantId)) {
-      throw new E_ENTRA_TENANT_NOT_ALLOWED([tenantId])
-    }
-
-    return claims as EntraIdTokenClaims
-  }
-
-  #isTenantAllowed(tenantId: string) {
-    const accepted = this.config.allowedTenants ?? [this.config.tenantId]
-    return accepted.some((tenant) => tenant.toLowerCase() === tenantId.toLowerCase())
+    return { ...token, idTokenClaims }
   }
 
   /**
