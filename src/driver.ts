@@ -47,6 +47,18 @@ export type EntraConfig = {
 }
 
 /**
+ * Fields added to the Ally user by this driver.
+ */
+export type EntraUserFields = {
+  /**
+   * The sign-in name from Microsoft Graph. It may look like an email address,
+   * but it is not guaranteed to be one and it can change, so never use it
+   * to identify a user. Use `id` instead.
+   */
+  userPrincipalName: string | null
+}
+
+/**
  * Driver implementation. It is mostly configuration driven except the API call
  * to get user info.
  */
@@ -96,6 +108,12 @@ export class EntraDriver
    * For example: "facebook_oauth_state"
    */
   protected stateCookieName = 'entra_oauth_state'
+
+  /**
+   * Cookie name for storing the PKCE code verifier. Defining it enables PKCE:
+   * Ally sends the code challenge on redirect and the verifier on token exchange.
+   */
+  protected codeVerifierCookieName = 'entra_oauth_code_verifier'
 
   /**
    * Parameter name to be used for sending and receiving the state from.
@@ -184,6 +202,7 @@ export class EntraDriver
       nickName: name,
       name,
       email: (body.mail ?? null) as string | null,
+      userPrincipalName: (body.userPrincipalName ?? null) as string | null,
       emailVerificationState: 'unsupported' as const,
       avatarUrl: null,
       original: body,
@@ -195,7 +214,7 @@ export class EntraDriver
    */
   async user(
     callback?: (request: ApiRequestContract) => void
-  ): Promise<AllyUserContract<EntraAccessToken>> {
+  ): Promise<AllyUserContract<EntraAccessToken> & EntraUserFields> {
     const token = await this.accessToken(callback)
     const user = await this.getUserInfo(token.token, callback)
 
@@ -208,7 +227,7 @@ export class EntraDriver
   async userFromToken(
     accessToken: string,
     callback?: (request: ApiRequestContract) => void
-  ): Promise<AllyUserContract<{ token: string; type: 'bearer' }>> {
+  ): Promise<AllyUserContract<{ token: string; type: 'bearer' }> & EntraUserFields> {
     const user = await this.getUserInfo(accessToken, callback)
 
     return { ...user, token: { token: accessToken, type: 'bearer' } }
