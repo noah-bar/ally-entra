@@ -2,7 +2,7 @@
   "name": "@hxtc/ally-entra",
   "description": "Microsoft Entra ID driver for AdonisJS Ally",
   "version": "0.0.0",
-  "main": "index.js",
+  "main": "build/index.js",
   "type": "module",
   "files": [
     "build/index.js",
