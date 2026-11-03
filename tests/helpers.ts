@@ -3,6 +3,7 @@ import { Socket } from 'node:net'
 import { EncryptionFactory } from '@adonisjs/core/factories/encryption'
 import { HttpContextFactory, RequestFactory, ResponseFactory } from '@adonisjs/core/factories/http'
 import type { HttpContext } from '@adonisjs/core/http'
+import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 
 const encryption = new EncryptionFactory().create()
 
@@ -57,7 +58,7 @@ export type RecordedRequest = {
   body: URLSearchParams
 }
 
-type Reply = { status?: number; body: unknown }
+export type Reply = { status?: number; body: unknown | (() => unknown) }
 
 /**
  * Replaces `fetch`, used by Ally for HTTP calls. Each URL must be declared,
@@ -81,7 +82,8 @@ export function mockFetch(replies: Record<string, Reply>) {
       body: new URLSearchParams(await request.text()),
     })
 
-    return Response.json(reply.body, { status: reply.status ?? 200 })
+    const body = typeof reply.body === 'function' ? await reply.body() : reply.body
+    return Response.json(body, { status: reply.status ?? 200 })
   }
 
   return {
@@ -90,4 +92,33 @@ export function mockFetch(replies: Record<string, Reply>) {
       globalThis.fetch = originalFetch
     },
   }
+}
+
+const SIGNING_KEY_ID = 'test-key'
+const signingKeyPair = await generateKeyPair('RS256', { extractable: true })
+
+/**
+ * The key set Microsoft would publish for tokens signed by `signIdToken`.
+ */
+export const publishedKeys = {
+  keys: [
+    {
+      ...(await exportJWK(signingKeyPair.publicKey)),
+      kid: SIGNING_KEY_ID,
+      alg: 'RS256',
+      use: 'sig',
+    },
+  ],
+}
+
+/**
+ * Signs an ID token like Microsoft, or with another key when one is given.
+ */
+export async function signIdToken(
+  claims: Record<string, unknown>,
+  privateKey: CryptoKey = signingKeyPair.privateKey
+) {
+  return new SignJWT(claims)
+    .setProtectedHeader({ alg: 'RS256', kid: SIGNING_KEY_ID })
+    .sign(privateKey)
 }
