@@ -25,7 +25,7 @@ import type {
  */
 export type EntraAccessToken = {
   token: string
-  type: 'bearer'
+  type: string
 }
 
 /**
