@@ -8,12 +8,6 @@
 |
 */
 
-/**
-|--------------------------------------------------------------------------
- *  Search keyword "YourDriver" and replace it with a meaningful name
-|--------------------------------------------------------------------------
- */
-
 import { Oauth2Driver } from '@adonisjs/ally'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { AllyDriverContract, AllyUserContract, ApiRequestContract } from '@adonisjs/ally/types'
@@ -24,7 +18,7 @@ import type { AllyDriverContract, AllyUserContract, ApiRequestContract } from '@
  * token must have "token" and "type" properties and you may
  * define additional properties (if needed)
  */
-export type YourDriverAccessToken = {
+export type EntraAccessToken = {
   token: string
   type: 'bearer'
 }
@@ -32,12 +26,12 @@ export type YourDriverAccessToken = {
 /**
  * Scopes accepted by the driver implementation.
  */
-export type YourDriverScopes = string
+export type EntraScopes = string
 
 /**
  * The configuration accepted by the driver implementation.
  */
-export type YourDriverConfig = {
+export type EntraConfig = {
   clientId: string
   clientSecret: string
   callbackUrl: string
@@ -50,9 +44,9 @@ export type YourDriverConfig = {
  * Driver implementation. It is mostly configuration driven except the API call
  * to get user info.
  */
-export class YourDriver
-  extends Oauth2Driver<YourDriverAccessToken, YourDriverScopes>
-  implements AllyDriverContract<YourDriverAccessToken, YourDriverScopes>
+export class EntraDriver
+  extends Oauth2Driver<EntraAccessToken, EntraScopes>
+  implements AllyDriverContract<EntraAccessToken, EntraScopes>
 {
   /**
    * The URL for the redirect request. The user will be redirected on this page
@@ -95,7 +89,7 @@ export class YourDriver
    * approach is to prefix the oauth provider name to `oauth_state` value. For example:
    * For example: "facebook_oauth_state"
    */
-  protected stateCookieName = 'YourDriver_oauth_state'
+  protected stateCookieName = 'entra_oauth_state'
 
   /**
    * Parameter name to be used for sending and receiving the state from.
@@ -117,7 +111,7 @@ export class YourDriver
 
   constructor(
     ctx: HttpContext,
-    public config: YourDriverConfig
+    public config: EntraConfig
   ) {
     super(ctx, config)
 
@@ -135,7 +129,7 @@ export class YourDriver
    * is made by the base implementation of "Oauth2" driver and this is a
    * hook to pre-configure the request.
    */
-  // protected configureRedirectRequest(request: RedirectRequest<YourDriverScopes>) {}
+  // protected configureRedirectRequest(request: RedirectRequest<EntraScopes>) {}
 
   /**
    * Optionally configure the access token request. The actual request is made by
@@ -161,7 +155,7 @@ export class YourDriver
    */
   async user(
     callback?: (request: ApiRequestContract) => void
-  ): Promise<AllyUserContract<YourDriverAccessToken>> {
+  ): Promise<AllyUserContract<EntraAccessToken>> {
     const accessToken = await this.accessToken()
     const request = this.httpClient(this.config.userInfoUrl || this.userInfoUrl)
 
@@ -202,6 +196,6 @@ export class YourDriver
  * The factory function to reference the driver implementation
  * inside the "config/ally.ts" file.
  */
-export function YourDriverService(config: YourDriverConfig): (ctx: HttpContext) => YourDriver {
-  return (ctx) => new YourDriver(ctx, config)
+export function EntraService(config: EntraConfig): (ctx: HttpContext) => EntraDriver {
+  return (ctx) => new EntraDriver(ctx, config)
 }
