@@ -71,12 +71,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hxtc/ally-entra.git"
+    "url": "git+https://github.com/noah-bar/ally-entra.git"
   },
   "bugs": {
-    "url": "https://github.com/hxtc/ally-entra/issues"
+    "url": "https://github.com/noah-bar/ally-entra/issues"
   },
-  "homepage": "https://github.com/hxtc/ally-entra#readme",
+  "homepage": "https://github.com/noah-bar/ally-entra#readme",
   "engines": {
     "node": ">=24.0.0"
   },
