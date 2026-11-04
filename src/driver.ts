@@ -7,9 +7,11 @@ import type {
   RedirectRequestContract,
 } from '@adonisjs/ally/types'
 import type { HttpContext } from '@adonisjs/core/http'
+import { fetchAvatar } from './avatar.js'
 import { CLIENT_ASSERTION_TYPE, createClientAssertion } from './client_assertion.js'
 import { assertValidConfig, LOGIN_URL } from './config.js'
 import { E_ENTRA_TOKEN_REFRESH_FAILED, type EntraTokenErrorDetails } from './errors.js'
+import { GRAPH_ME_URL, GraphClient } from './graph.js'
 import { verifyIdToken } from './id_token.js'
 import type {
   EntraAccessToken,
@@ -19,8 +21,6 @@ import type {
   EntraScopes,
   EntraUser,
 } from './types.js'
-
-const GRAPH_ME_URL = 'https://graph.microsoft.com/v1.0/me'
 
 /**
  * Ally driver for Microsoft Entra ID.
@@ -198,28 +198,19 @@ export class EntraDriver
    * to the Ally user format.
    */
   protected async getUserInfo(token: string, callback?: (request: ApiRequestContract) => void) {
-    const request = this.httpClient(this.config.userInfoUrl || this.userInfoUrl)
-    request.header('Authorization', `Bearer ${token}`)
-    request.header('Accept', 'application/json')
-    request.parseAs('json')
-
-    /**
-     * Called last, so that the caller can override the request.
-     */
-    if (typeof callback === 'function') {
-      callback(request)
-    }
-
-    const body = await request.get()
-    const name: string = body.displayName ?? body.userPrincipalName
+    const graph = new GraphClient(this.config.userInfoUrl || this.userInfoUrl, token, (url) =>
+      this.httpClient(url)
+    )
+    const [body, avatarUrl] = await Promise.all([graph.fetchUser(callback), fetchAvatar(graph)])
+    const name = body.displayName ?? body.userPrincipalName
 
     return {
-      id: body.id as string,
+      id: body.id,
       nickName: name,
       name,
-      email: (body.mail ?? null) as string | null,
+      email: body.mail ?? null,
       emailVerificationState: 'unsupported' as const,
-      avatarUrl: null,
+      avatarUrl,
       original: body,
     }
   }

@@ -82,6 +82,10 @@ export function mockFetch(replies: Record<string, Reply>) {
       body: new URLSearchParams(await request.text()),
     })
 
+    if (reply.body instanceof Response) {
+      return reply.body.clone()
+    }
+
     const body = typeof reply.body === 'function' ? await reply.body() : reply.body
     return Response.json(body, { status: reply.status ?? 200 })
   }
