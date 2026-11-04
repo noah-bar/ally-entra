@@ -159,6 +159,23 @@ test.group('EntraDriver | sign-in errors', (group) => {
     assert.match((failure!.cause as Error).message, /Unexpected request/)
   })
 
+  test('does not keep the original network error, which holds the request', async ({ assert }) => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => {
+      throw Object.assign(new TypeError('fetch failed'), { request: 'client-secret' })
+    }
+
+    try {
+      const failure = await signInFailure(await callbackDriver({ code: 'code' }))
+
+      assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
+      assert.equal((failure!.cause as Error).message, 'fetch failed')
+      assert.notInclude(inspect(failure, { depth: 8 }), 'client-secret')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('does not hide a bug in the caller callback', async ({ assert }) => {
     const driver = await callbackDriver({ code: 'code' })
     const bug = new TypeError('bug in the callback')

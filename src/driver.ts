@@ -240,14 +240,14 @@ export class EntraDriver
   }
 
   /**
-   * Reads the Microsoft error details from a failed token request. A refused
-   * request is not kept as the cause, since it holds the credentials and could
-   * end up in the logs.
+   * Reads the Microsoft error details from a failed token request. The original
+   * error is not kept, since its request holds the credentials and could end up
+   * in the logs.
    */
   async #toRequestError(error: unknown) {
-    const response: Response | undefined = (error as { response?: Response }).response
+    const { message, response } = error as { message?: string; response?: Response }
     if (!response) {
-      return new E_ENTRA_REQUEST_FAILED({}, { cause: error })
+      return new E_ENTRA_REQUEST_FAILED({}, { cause: new Error(message) })
     }
 
     const details: unknown = await response.json().catch(() => undefined)
