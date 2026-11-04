@@ -1,3 +1,5 @@
+export { configure } from './configure.js'
 export * from './src/driver.js'
 export * as errors from './src/errors.js'
 export * from './src/types.js'
+export { stubsRoot } from './stubs/main.js'

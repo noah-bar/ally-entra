@@ -1,0 +1,22 @@
+{{{
+  exports({ to: app.configPath('ally.ts') })
+}}}
+import env from '#start/env'
+import { defineConfig } from '@adonisjs/ally'
+import type { InferSocialProviders } from '@adonisjs/ally/types'
+import { EntraService } from '@hxtc/ally-entra'
+
+const allyConfig = defineConfig({
+  entra: EntraService({
+    clientId: env.get('ENTRA_CLIENT_ID'),
+    clientSecret: env.get('ENTRA_CLIENT_SECRET').release(),
+    tenantId: env.get('ENTRA_TENANT_ID'),
+    callbackUrl: \`\${env.get('APP_URL')}/oauth/entra/callback\`,
+  }),
+})
+
+export default allyConfig
+
+declare module '@adonisjs/ally/types' {
+  interface SocialProviders extends InferSocialProviders<typeof allyConfig> {}
+}
