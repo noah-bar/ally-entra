@@ -6,6 +6,11 @@ import type { EntraCertificate } from './types.js'
  */
 const LIFETIME_SECONDS = 300
 
+/**
+ * Start date margin, in case this server clock is ahead of the Microsoft one.
+ */
+const CLOCK_MARGIN_SECONDS = 60
+
 export const CLIENT_ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 
 const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
@@ -46,8 +51,8 @@ export function createClientAssertion(
       iss: clientId,
       sub: clientId,
       jti: randomUUID(),
-      iat: now,
-      nbf: now,
+      iat: now - CLOCK_MARGIN_SECONDS,
+      nbf: now - CLOCK_MARGIN_SECONDS,
       exp: now + LIFETIME_SECONDS,
     }),
   ].join('.')

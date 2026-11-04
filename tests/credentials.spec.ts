@@ -157,6 +157,8 @@ test.group('EntraDriver | authentication with a certificate', (group) => {
       requiredClaims: ['jti', 'iat', 'nbf', 'exp'],
     })
     assert.isAtMost(payload.exp! - payload.nbf!, 600)
+    assert.equal(payload.exp! - payload.nbf!, 360)
+    assert.equal(payload.iat, payload.nbf)
 
     const expectedThumbprint = Buffer.from(x509.fingerprint256.replaceAll(':', ''), 'hex').toString(
       'base64url'
