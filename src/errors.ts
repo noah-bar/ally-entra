@@ -7,6 +7,7 @@ const SIGN_IN_REQUIRED_ERRORS = new Set([
   'access_denied',
   'consent_required',
   'interaction_required',
+  'InvalidAuthenticationToken',
   'invalid_grant',
   'login_required',
   'missing_refresh_token',

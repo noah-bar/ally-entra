@@ -1,5 +1,6 @@
 import type { ApiRequest } from '@adonisjs/ally'
 import type { ApiRequestContract } from '@adonisjs/ally/types'
+import { E_ENTRA_REQUEST_FAILED } from './errors.js'
 
 export const GRAPH_ME_URL = 'https://graph.microsoft.com/v1.0/me'
 
@@ -13,6 +14,28 @@ export type GraphUser = {
   displayName?: string | null
   mail?: string | null
   userPrincipalName: string
+}
+
+type GraphErrorBody = { error?: { code?: unknown; message?: unknown } }
+
+/**
+ * Turns a failed Graph request into a typed error. The original error is not
+ * kept, since its request holds the access token and could end up in the logs.
+ */
+async function toRequestError(error: unknown) {
+  const { message, response } = error as { message?: string; response?: Response }
+  if (!response) {
+    return new E_ENTRA_REQUEST_FAILED({}, { cause: new Error(message) })
+  }
+
+  const body = (await response.json().catch(() => undefined)) as GraphErrorBody | null | undefined
+  const failure = new E_ENTRA_REQUEST_FAILED({
+    error: body?.error?.code,
+    error_description: body?.error?.message,
+  })
+  failure.responseStatus = response.status
+
+  return failure
 }
 
 /**
@@ -45,7 +68,11 @@ export class GraphClient {
       callback(request)
     }
 
-    return request.get()
+    try {
+      return await request.get()
+    } catch (error) {
+      throw await toRequestError(error)
+    }
   }
 
   /**

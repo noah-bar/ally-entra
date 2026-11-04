@@ -63,7 +63,11 @@ export async function verifyIdToken(
     })
     claims = verified.payload
   } catch (error) {
-    throw new E_ENTRA_INVALID_ID_TOKEN([(error as Error).message], { cause: error })
+    /**
+     * The original error is not kept, since it holds the claims of the token,
+     * which are personal data that could end up in the logs.
+     */
+    throw new E_ENTRA_INVALID_ID_TOKEN([(error as Error).message])
   }
 
   const tenantId = claims.tid

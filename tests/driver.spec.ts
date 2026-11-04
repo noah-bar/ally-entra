@@ -1,5 +1,6 @@
 import { generateKeyPair, SignJWT, UnsecuredJWT } from 'jose'
 import { createHash } from 'node:crypto'
+import { inspect } from 'node:util'
 import { errors as allyErrors } from '@adonisjs/ally'
 import type { HttpContext } from '@adonisjs/core/http'
 import { test } from '@japa/runner'
@@ -541,6 +542,24 @@ test.group('EntraDriver | user', (group) => {
       allyErrors.E_OAUTH_MISSING_CODE
     )
     assert.lengthOf(http.requests, 0)
+  })
+
+  test('does not keep personal data in an ID token error', async ({ assert }) => {
+    idTokenFor = (currentNonce) =>
+      signIdToken({
+        ...validClaims(currentNonce),
+        exp: Math.floor(Date.now() / 1000) - 3600,
+        email: 'personal@example.test',
+      })
+    const driver = await signedInDriver()
+
+    const failure = await driver.user().then(
+      () => undefined,
+      (error) => error
+    )
+
+    assert.instanceOf(failure, errors.E_ENTRA_INVALID_ID_TOKEN)
+    assert.notInclude(inspect(failure, { depth: 20, showHidden: true }), 'personal@example.test')
   })
 
   test('does not call Graph when Microsoft refuses the code', async ({ assert }) => {

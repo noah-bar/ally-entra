@@ -303,6 +303,9 @@ export class EntraDriver
   /**
    * Returns the user that owns an existing access token. There is no ID token
    * here, so the tenant, roles and groups are not available.
+   *
+   * Never use it to authenticate a user: it accepts any valid Microsoft Graph
+   * token, even one issued to another application or from another tenant.
    */
   async userFromToken(
     accessToken: string,

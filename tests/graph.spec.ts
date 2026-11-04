@@ -1,5 +1,6 @@
+import { inspect } from 'node:util'
 import { test } from '@japa/runner'
-import { EntraService, type EntraConfig } from '../index.js'
+import { EntraService, errors, type EntraConfig } from '../index.js'
 import { createContext, mockFetch, type Reply } from './helpers.js'
 
 const GRAPH_URL = 'https://graph.microsoft.com/v1.0/me'
@@ -165,10 +166,79 @@ test.group('Microsoft Graph | avatar', (group) => {
     assert.equal(user.avatarUrl, photoAsDataUrl)
   })
 
-  test('fails when the profile itself cannot be read', async ({ assert }) => {
-    http = mockFetch({ [GRAPH_URL]: { status: 500, body: {} }, [SIZED_PHOTO_URL]: photoReply() })
+  /**
+   * Returns the error thrown when reading the profile.
+   */
+  const profileFailure = (reply: Reply) => {
+    http = mockFetch({ [GRAPH_URL]: reply, [SIZED_PHOTO_URL]: photoReply() })
+    return EntraService(config)(createContext())
+      .userFromToken('secret-access-token')
+      .then(
+        () => undefined,
+        (error: InstanceType<typeof errors.E_ENTRA_REQUEST_FAILED>) => error
+      )
+  }
+
+  test('explains why the profile cannot be read', async ({ assert }) => {
+    const failure = await profileFailure({
+      status: 401,
+      body: { error: { code: 'InvalidAuthenticationToken', message: 'Token expired' } },
+    })
+
+    assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
+    assert.equal(failure!.message, 'Microsoft refused the request: InvalidAuthenticationToken')
+    assert.equal(failure!.description, 'Token expired')
+    assert.equal(failure!.responseStatus, 401)
+    assert.isTrue(failure!.requiresSignIn)
+  })
+
+  test('handles a profile error that is not JSON', async ({ assert }) => {
+    const failure = await profileFailure({ body: new Response('Bad gateway', { status: 403 }) })
+
+    assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
+    assert.equal(failure!.responseStatus, 403)
+    assert.isFalse(failure!.requiresSignIn)
+  })
+
+  test('does not keep the access token in a profile error', async ({ assert }) => {
+    const failure = await profileFailure({ status: 403, body: {} })
+
+    assert.notInclude(inspect(failure, { depth: 20, showHidden: true }), 'secret-access-token')
+  })
+
+  test('does not keep the access token after a network failure', async ({ assert }) => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async (input, init) => {
+      const request = new Request(input, init)
+      throw Object.assign(new Error('Request timed out'), { request })
+    }
+
+    try {
+      const failure = await EntraService(config)(createContext())
+        .userFromToken('secret-access-token')
+        .then(
+          () => undefined,
+          (error: InstanceType<typeof errors.E_ENTRA_REQUEST_FAILED>) => error
+        )
+
+      assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
+      assert.equal((failure!.cause as Error).message, 'Request timed out')
+      assert.notInclude(inspect(failure, { depth: 20, showHidden: true }), 'secret-access-token')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('does not hide a bug in the caller callback', async ({ assert }) => {
+    http = mockFetch({ [GRAPH_URL]: { body: profile }, [SIZED_PHOTO_URL]: photoReply() })
     const driver = EntraService(config)(createContext())
 
-    await assert.rejects(() => driver.userFromToken('access-token'), /500/)
+    await assert.rejects(
+      () =>
+        driver.userFromToken('token', () => {
+          throw new TypeError('bug in the callback')
+        }),
+      'bug in the callback'
+    )
   })
 })
