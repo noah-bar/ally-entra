@@ -3,7 +3,7 @@ import { Socket } from 'node:net'
 import { EncryptionFactory } from '@adonisjs/core/factories/encryption'
 import { HttpContextFactory, RequestFactory, ResponseFactory } from '@adonisjs/core/factories/http'
 import type { HttpContext } from '@adonisjs/core/http'
-import { exportJWK, generateKeyPair, SignJWT } from 'jose'
+import { type CryptoKey, exportJWK, generateKeyPair, SignJWT } from 'jose'
 
 const encryption = new EncryptionFactory().create()
 
