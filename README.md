@@ -15,8 +15,7 @@ It signs users in with OpenID Connect, validates what Microsoft returns, and giv
 - **Profile photo** as `avatarUrl`
 - **Readable errors** that carry the Microsoft `AADSTS` code
 
-> [!NOTE]
-> This is a community package. It is not affiliated with Microsoft or AdonisJS.
+This is a community package. It is not affiliated with Microsoft or AdonisJS.
 
 ## Requirements
 
@@ -112,19 +111,16 @@ router.get('/oauth/entra/callback', async ({ ally }) => {
 | `token` | The tokens, with `idTokenClaims` holding the validated claims |
 | `original` | The raw Graph response, such as `original.userPrincipalName` |
 
-> [!CAUTION]
-> `user` holds the tokens of the user, so never return it as a whole from a route or log it. Pick the properties you need.
+A few rules when using it:
+
+- Pick the properties you need: `user` holds the tokens, so never return it as a whole from a route or log it.
+- Identify users with `tenantId` and `id`, never with `email` or `userPrincipalName`, which can change and are not always verified.
+- When `hasGroupsOverage` is `true`, `groups` is incomplete, so do not use it for access decisions. The driver does not fetch the missing groups.
 
 `userFromToken()` only returns the Graph data, since there is no ID token to read `tenantId`, `roles` and `groups` from.
 
-> [!CAUTION]
-> **Never use `userFromToken()` to authenticate a user.** It accepts any valid Microsoft Graph token, even one issued to another application or from another tenant, and ignores `allowedTenants`. A malicious application could use a token obtained from a victim to sign in as them. Only use it with a token your application obtained itself.
-
-> [!IMPORTANT]
-> Identify users with `tenantId` and `id`, never with `email` or `userPrincipalName`. Those can change and are not always verified.
-
 > [!WARNING]
-> When `hasGroupsOverage` is `true`, `groups` is incomplete: do not use it for access decisions. The driver does not fetch the missing groups.
+> **Never use `userFromToken()` to authenticate a user.** It accepts any valid Microsoft Graph token, even one issued to another application or from another tenant, and ignores `allowedTenants`. A malicious application could use a token obtained from a victim to sign in as them. Only use it with a token your application obtained itself.
 
 ### Avatar
 
@@ -132,11 +128,22 @@ router.get('/oauth/entra/callback', async ({ ally }) => {
 
 It is `null` when no suitable photo is available, and a photo never makes a sign-in fail.
 
+The photo is read during the sign-in, and a slow Microsoft Graph can delay it by up to 10 seconds. If you do not use it, turn it off with `fetchAvatar: false` in the driver configuration. `avatarUrl` is then always `null`.
+
 ## Scopes
 
 By default, the driver requests `openid`, `profile`, `email` and `User.Read`.
 
-To change them, **call `clearScopes()` first**:
+To change them for every sign-in, set `scopes` in the driver configuration:
+
+```ts
+EntraService({
+  // ...
+  scopes: ['openid', 'profile', 'email', 'User.Read', 'Calendars.Read'],
+})
+```
+
+To change them for a single sign-in, **call `clearScopes()` first**:
 
 ```ts
 import router from '@adonisjs/core/services/router'
@@ -148,9 +155,29 @@ router.get('/oauth/entra/redirect', ({ ally }) => {
 })
 ```
 
-Without `clearScopes()`, the current `@poppinss/oauth-client` release sends the `scope` parameter twice, and Microsoft rejects the request with `AADSTS9000411`. The issue is fixed upstream, but not released yet.
+Without `clearScopes()`, the current `@poppinss/oauth-client` release sends the `scope` parameter twice, and Microsoft rejects the request with `AADSTS9000411`. The issue is fixed upstream, but not released yet. `mergeScopes()` has the same issue, so avoid it.
 
 Keep `openid`, as the driver requires an ID token, and `User.Read`, as `user()` reads the Graph profile.
+
+## Sign-in page
+
+Microsoft sign-in parameters can be set when redirecting:
+
+```ts
+import router from '@adonisjs/core/services/router'
+
+router.get('/oauth/entra/redirect', ({ ally }) => {
+  return ally.use('entra').redirect((request) => {
+    request.param('prompt', 'select_account')
+  })
+})
+```
+
+| Parameter | Effect |
+| --- | --- |
+| `prompt` | `select_account` always shows the account picker, `login` asks for credentials again, `consent` shows the consent screen, and `none` fails if the user would have to do anything |
+| `login_hint` | Fills in the account name. The user can still change it, so it proves nothing |
+| `domain_hint` | Skips the account lookup, and goes straight to the identity provider of that domain |
 
 ## Refreshing tokens
 
@@ -263,7 +290,7 @@ The errors are available from the `errors` export.
 
 | Error | Status | When |
 | --- | --- | --- |
-| `E_ENTRA_REQUEST_FAILED` | 401 or 500 | Microsoft refused a sign-in, a token request or the Graph profile |
+| `E_ENTRA_REQUEST_FAILED` | 401 or 500 | Microsoft refused a sign-in, a token request or the Graph profile, or could not be reached |
 | `E_ENTRA_INVALID_ID_TOKEN` | 401 | The ID token is missing or failed validation |
 | `E_ENTRA_TENANT_NOT_ALLOWED` | 403 | The tenant is not in `allowedTenants` |
 | `E_ENTRA_INVALID_CONFIG` | 500 | The driver configuration is invalid, at boot |
