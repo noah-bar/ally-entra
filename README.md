@@ -1,5 +1,7 @@
 # @hxtc/ally-entra
 
+[![gh-workflow-image]][gh-workflow-url] [![npm-image]][npm-url] ![][typescript-image] [![license-image]][license-url]
+
 A [Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/identity-platform/) (formerly Azure AD) driver for [AdonisJS Ally](https://docs.adonisjs.com/guides/authentication/social-authentication).
 
 It signs users in with OpenID Connect, validates what Microsoft returns, and gives your application the tenant, roles and groups of the user.
@@ -315,6 +317,25 @@ Not supported yet:
 - national clouds, such as Azure Government or Azure China
 - Azure AD B2C
 
+## Contributing
+
+Issues and pull requests are welcome. For a new feature, please open an issue first to discuss it.
+
+This project follows the [AdonisJS contribution guide](https://github.com/adonisjs/.github/blob/main/docs/CONTRIBUTING.md). Before opening a pull request, run:
+
+```sh
+npm install
+npm test
+```
+
 ## License
 
 [MIT](LICENSE)
+
+[gh-workflow-image]: https://img.shields.io/github/actions/workflow/status/noah-bar/ally-entra/checks.yml?style=for-the-badge
+[gh-workflow-url]: https://github.com/noah-bar/ally-entra/actions/workflows/checks.yml 'GitHub Actions'
+[npm-image]: https://img.shields.io/npm/v/@hxtc/ally-entra/latest.svg?style=for-the-badge&logo=npm
+[npm-url]: https://www.npmjs.com/package/@hxtc/ally-entra/v/latest 'npm'
+[typescript-image]: https://img.shields.io/badge/Typescript-294E80.svg?style=for-the-badge&logo=typescript
+[license-image]: https://img.shields.io/github/license/noah-bar/ally-entra?style=for-the-badge
+[license-url]: LICENSE
