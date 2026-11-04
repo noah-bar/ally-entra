@@ -70,8 +70,7 @@ function readAadstsCode({ error_codes: codes, error_description: description }: 
  * error codes: the callback query string can be forged by anyone, so the free
  * text description stays out of it.
  */
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export class E_ENTRA_REQUEST_FAILED extends Exception {
+export const E_ENTRA_REQUEST_FAILED = class extends Exception {
   static code = 'E_ENTRA_REQUEST_FAILED'
 
   /**

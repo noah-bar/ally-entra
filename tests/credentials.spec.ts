@@ -5,6 +5,8 @@ import { decodeProtectedHeader, jwtVerify } from 'jose'
 import { EntraService, errors, type EntraConfig } from '../index.js'
 import { browserCookies, createContext, mockFetch, publishedKeys, signIdToken } from './helpers.js'
 
+type RequestError = InstanceType<typeof errors.E_ENTRA_REQUEST_FAILED>
+
 const fixture = (name: string) => readFileSync(new URL(`fixtures/${name}`, import.meta.url), 'utf8')
 
 const TENANT = '11111111-1111-4111-8111-111111111111'
@@ -197,7 +199,7 @@ test.group('EntraDriver | refreshAccessToken', (group) => {
   const refreshFailure = (driver: ReturnType<typeof driverFor>) =>
     driver.refreshAccessToken('old-refresh-token').then(
       () => undefined,
-      (error: errors.E_ENTRA_REQUEST_FAILED) => error
+      (error: RequestError) => error
     )
 
   group.each.setup(() => {

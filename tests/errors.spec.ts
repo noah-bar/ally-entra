@@ -4,6 +4,8 @@ import { test } from '@japa/runner'
 import { EntraService, errors, type EntraConfig } from '../index.js'
 import { browserCookies, createContext, mockFetch, type Reply } from './helpers.js'
 
+type RequestError = InstanceType<typeof errors.E_ENTRA_REQUEST_FAILED>
+
 const TENANT = '11111111-1111-4111-8111-111111111111'
 const TOKEN_URL = `https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`
 const config: EntraConfig = {
@@ -38,7 +40,7 @@ test.group('EntraDriver | sign-in errors', (group) => {
   const signInFailure = (driver: Awaited<ReturnType<typeof callbackDriver>>) =>
     driver.user().then(
       () => undefined,
-      (error: errors.E_ENTRA_REQUEST_FAILED) => error
+      (error: RequestError) => error
     )
 
   group.each.setup(() => {
@@ -63,6 +65,8 @@ test.group('EntraDriver | sign-in errors', (group) => {
 
     assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
     assert.equal(failure!.message, 'Microsoft refused the request: invalid_client (AADSTS7000215)')
+    assert.equal(failure!.name, 'E_ENTRA_REQUEST_FAILED')
+    assert.equal(failure!.code, 'E_ENTRA_REQUEST_FAILED')
     assert.equal(failure!.microsoftError, 'invalid_client')
     assert.equal(failure!.aadstsCode, 'AADSTS7000215')
     assert.equal(failure!.description, 'AADSTS7000215: Invalid client secret provided')
@@ -88,7 +92,7 @@ test.group('EntraDriver | sign-in errors', (group) => {
 
     const failure = await driver.refreshAccessToken('secret-refresh-token').then(
       () => undefined,
-      (error: errors.E_ENTRA_REQUEST_FAILED) => error
+      (error: RequestError) => error
     )
 
     const printed = inspect(failure, { depth: 20, showHidden: true })
@@ -234,7 +238,7 @@ test.group('EntraDriver | refresh errors', () => {
 
     const failure = await driver.refreshAccessToken('').then(
       () => undefined,
-      (error: errors.E_ENTRA_REQUEST_FAILED) => error
+      (error: RequestError) => error
     )
 
     assert.isTrue(failure!.requiresSignIn)
