@@ -1,8 +1,16 @@
 {
   "name": "@hxtc/ally-entra",
   "description": "Microsoft Entra ID driver for AdonisJS Ally",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "default": "./build/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "type": "module",
   "files": [
     "build/index.js",
@@ -14,8 +22,10 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "pretest": "npm run lint && npm run typecheck",
-    "build": "tsc",
-    "test": "node --enable-source-maps --import=@poppinss/ts-exec bin/test.ts"
+    "clean": "del-cli build",
+    "build": "npm run clean && tsc",
+    "test": "node --enable-source-maps --import=@poppinss/ts-exec bin/test.ts",
+    "prepublishOnly": "npm test && npm run build"
   },
   "devDependencies": {
     "@adonisjs/ally": "^6.3.2",
@@ -26,22 +36,28 @@
     "@japa/assert": "^4.2.0",
     "@japa/runner": "^5.4.0",
     "@poppinss/ts-exec": "^1.5.1",
-    "@swc/core": "^1.16.21",
+    "del-cli": "^8.0.1",
     "eslint": "^10.14.0",
     "prettier": "^3.9.10",
-    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
     "@adonisjs/ally": "^6.3.2",
     "@adonisjs/core": "^7.0.0"
   },
-  "author": "",
+  "author": "noah-bar",
   "license": "MIT",
   "keywords": [
-    "social-auth",
+    "adonisjs",
     "adonisjs-ally",
-    "adonisjs"
+    "ally",
+    "azure-ad",
+    "entra-id",
+    "microsoft",
+    "microsoft-entra",
+    "oauth2",
+    "oidc",
+    "social-auth"
   ],
   "prettier": "@adonisjs/prettier-config",
   "publishConfig": {
@@ -49,5 +65,16 @@
   },
   "dependencies": {
     "jose": "^6.2.15"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hxtc/ally-entra.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hxtc/ally-entra/issues"
+  },
+  "homepage": "https://github.com/hxtc/ally-entra#readme",
+  "engines": {
+    "node": ">=24.0.0"
   }
 }
