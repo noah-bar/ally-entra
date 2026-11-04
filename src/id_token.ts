@@ -1,6 +1,10 @@
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
+import { createRemoteJWKSet, errors as joseErrors, jwtVerify, type JWTPayload } from 'jose'
 import { LOGIN_URL } from './config.js'
-import { E_ENTRA_INVALID_ID_TOKEN, E_ENTRA_TENANT_NOT_ALLOWED } from './errors.js'
+import {
+  E_ENTRA_INVALID_ID_TOKEN,
+  E_ENTRA_REQUEST_FAILED,
+  E_ENTRA_TENANT_NOT_ALLOWED,
+} from './errors.js'
 import type { EntraIdTokenClaims } from './types.js'
 
 /**
@@ -13,6 +17,22 @@ const CLOCK_TOLERANCE_SECONDS = 60
  * only lives for one request.
  */
 const signingKeys = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
+
+/**
+ * Errors caused by the token itself. Any other error means that the signing
+ * keys could not be read, which says nothing about the token.
+ */
+const INVALID_TOKEN_ERRORS = [
+  joseErrors.JOSEAlgNotAllowed,
+  joseErrors.JOSENotSupported,
+  joseErrors.JWKSMultipleMatchingKeys,
+  joseErrors.JWKSNoMatchingKey,
+  joseErrors.JWSInvalid,
+  joseErrors.JWSSignatureVerificationFailed,
+  joseErrors.JWTClaimValidationFailed,
+  joseErrors.JWTExpired,
+  joseErrors.JWTInvalid,
+]
 
 function getSigningKeys(tenantId: string) {
   let keys = signingKeys.get(tenantId)
@@ -67,7 +87,11 @@ export async function verifyIdToken(
      * The original error is not kept, since it holds the claims of the token,
      * which are personal data that could end up in the logs.
      */
-    throw new E_ENTRA_INVALID_ID_TOKEN([(error as Error).message])
+    const { message } = error as Error
+    if (!INVALID_TOKEN_ERRORS.some((invalidToken) => error instanceof invalidToken)) {
+      throw new E_ENTRA_REQUEST_FAILED({}, { cause: new Error(message) })
+    }
+    throw new E_ENTRA_INVALID_ID_TOKEN([message])
   }
 
   const tenantId = claims.tid

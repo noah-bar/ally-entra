@@ -465,6 +465,38 @@ test.group('EntraDriver | user', (group) => {
     await assert.rejects(() => driver.user(), errors.E_ENTRA_TENANT_NOT_ALLOWED)
   })
 
+  test('does not blame the token when the signing keys cannot be read: {title}')
+    .with([
+      {
+        title: 'Microsoft error',
+        tenantId: '22222222-1111-4111-8111-111111111111',
+        keysReply: { status: 503, body: {} },
+      },
+      {
+        title: 'network failure',
+        tenantId: '33333333-1111-4111-8111-111111111111',
+        keysReply: undefined,
+      },
+    ])
+    .run(async ({ assert }, { tenantId, keysReply }) => {
+      const keysUrl = `${LOGIN}/${tenantId}/discovery/v2.0/keys`
+      http.restore()
+      mock({
+        [`${LOGIN}/${tenantId}/oauth2/v2.0/token`]: tokenReply(),
+        ...(keysReply ? { [keysUrl]: keysReply } : {}),
+      })
+
+      const driver = await signedInDriver({ ...config, tenantId })
+      const failure = await driver.user().then(
+        () => undefined,
+        (error: InstanceType<typeof errors.E_ENTRA_REQUEST_FAILED>) => error
+      )
+
+      assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
+      assert.equal(failure!.status, 500)
+      assert.isFalse(failure!.requiresSignIn)
+    })
+
   test('uses the shared authority addresses and checks allowedTenants', async ({ assert }) => {
     const shared: EntraConfig = { ...config, tenantId: 'organizations', allowedTenants: [TENANT] }
     const sharedTokenUrl = `${LOGIN}/organizations/oauth2/v2.0/token`
