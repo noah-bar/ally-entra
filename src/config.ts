@@ -1,3 +1,4 @@
+import { assertUsableCertificate } from './client_assertion.js'
 import { E_ENTRA_INVALID_CONFIG } from './errors.js'
 import type { EntraConfig } from './types.js'
 
@@ -12,7 +13,20 @@ const TENANT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 /**
  * Refuses a configuration that would accept unexpected tenants.
  */
-export function assertValidConfig({ tenantId, allowedTenants }: EntraConfig) {
+export function assertValidConfig(config: EntraConfig) {
+  const { tenantId, allowedTenants, clientSecret, certificate } = config
+
+  if (Boolean(clientSecret) === Boolean(certificate)) {
+    throw new E_ENTRA_INVALID_CONFIG(['define either "clientSecret" or "certificate"'])
+  }
+  if (certificate) {
+    try {
+      assertUsableCertificate(certificate)
+    } catch (error) {
+      throw new E_ENTRA_INVALID_CONFIG([`"certificate" is not usable: ${(error as Error).message}`])
+    }
+  }
+
   const isSharedAuthority = SHARED_AUTHORITIES.includes(tenantId)
 
   if (!isSharedAuthority && !TENANT_ID_PATTERN.test(tenantId)) {

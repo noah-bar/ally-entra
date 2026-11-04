@@ -35,9 +35,45 @@ export type EntraAccessToken = {
 
 export type EntraScopes = string
 
-export type EntraConfig = {
+/**
+ * Tokens obtained from a refresh token. Microsoft documents the ID token
+ * returned here as not reliable for security, so it is left out.
+ */
+export type EntraRefreshedToken = {
+  token: string
+  type: string
+  expiresIn?: number
+  expiresAt?: Date
+  /**
+   * The token to store for the next refresh. It replaces the previous one.
+   */
+  refreshToken: string
+  scope?: string
+}
+
+/**
+ * A certificate registered on the application, as PEM contents.
+ */
+export type EntraCertificate = {
+  /**
+   * The public X.509 certificate.
+   */
+  certificate: string
+  /**
+   * The unencrypted RSA private key. Keep it out of the source code.
+   */
+  privateKey: string
+}
+
+/**
+ * How the application proves its identity to Microsoft: exactly one of both.
+ */
+export type EntraCredentials =
+  | { clientSecret: string; certificate?: undefined }
+  | { certificate: EntraCertificate; clientSecret?: undefined }
+
+export type EntraConfig = EntraCredentials & {
   clientId: string
-  clientSecret: string
   callbackUrl: string
   /**
    * The Directory (tenant) ID as a GUID, to accept a single tenant. Or one of

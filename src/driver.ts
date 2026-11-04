@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { Oauth2Driver } from '@adonisjs/ally'
+import { type ApiRequest, Oauth2Driver } from '@adonisjs/ally'
 import type {
   AllyDriverContract,
   AllyUserContract,
@@ -7,9 +7,18 @@ import type {
   RedirectRequestContract,
 } from '@adonisjs/ally/types'
 import type { HttpContext } from '@adonisjs/core/http'
+import { CLIENT_ASSERTION_TYPE, createClientAssertion } from './client_assertion.js'
 import { assertValidConfig, LOGIN_URL } from './config.js'
+import { E_ENTRA_TOKEN_REFRESH_FAILED, type EntraTokenErrorDetails } from './errors.js'
 import { verifyIdToken } from './id_token.js'
-import type { EntraAccessToken, EntraConfig, EntraScopes, EntraUser } from './types.js'
+import type {
+  EntraAccessToken,
+  EntraCertificate,
+  EntraConfig,
+  EntraRefreshedToken,
+  EntraScopes,
+  EntraUser,
+} from './types.js'
 
 const GRAPH_ME_URL = 'https://graph.microsoft.com/v1.0/me'
 
@@ -44,11 +53,16 @@ export class EntraDriver
    */
   #nonce?: string
 
-  constructor(
-    ctx: HttpContext,
-    public config: EntraConfig
-  ) {
-    super(ctx, config)
+  /**
+   * Ally expects a string here, which stays empty with a certificate.
+   */
+  declare config: Omit<EntraConfig, 'clientSecret' | 'certificate'> & {
+    clientSecret: string
+    certificate?: EntraCertificate
+  }
+
+  constructor(ctx: HttpContext, config: EntraConfig) {
+    super(ctx, { ...config, clientSecret: config.clientSecret ?? '' } as EntraDriver['config'])
     assertValidConfig(config)
 
     this.authorizeUrl = `${LOGIN_URL}/${config.tenantId}/oauth2/v2.0/authorize`
@@ -73,6 +87,29 @@ export class EntraDriver
     request.scopes(['openid', 'profile', 'email', 'User.Read'])
     request.param('response_type', 'code')
     request.param('nonce', nonce)
+  }
+
+  protected configureAccessTokenRequest(request: ApiRequestContract) {
+    this.#authenticateClient(request, this.config.accessTokenUrl || this.accessTokenUrl)
+  }
+
+  /**
+   * Proves the application identity with the certificate, or the client secret.
+   */
+  #authenticateClient(request: ApiRequestContract, tokenUrl: string) {
+    const { certificate, clientId, clientSecret } = this.config
+
+    if (!certificate) {
+      request.field('client_secret', clientSecret)
+      return
+    }
+
+    request.clearField('client_secret')
+    request.field('client_assertion_type', CLIENT_ASSERTION_TYPE)
+    request.field(
+      'client_assertion',
+      createClientAssertion(certificate, { clientId, audience: tokenUrl })
+    )
   }
 
   accessDenied() {
@@ -100,6 +137,60 @@ export class EntraDriver
     })
 
     return { ...token, idTokenClaims }
+  }
+
+  /**
+   * Exchanges a refresh token for new tokens. It requires the `offline_access`
+   * scope at sign-in, and the returned `refreshToken` must replace the old one.
+   */
+  async refreshAccessToken(
+    refreshToken: string,
+    callback?: (request: ApiRequestContract) => void
+  ): Promise<EntraRefreshedToken> {
+    if (!refreshToken) {
+      throw new E_ENTRA_TOKEN_REFRESH_FAILED({ error: 'missing_refresh_token' })
+    }
+
+    const tokenUrl = this.config.accessTokenUrl || this.accessTokenUrl
+    const request = this.httpClient(tokenUrl)
+    request.parseAs('json')
+    request.field('grant_type', 'refresh_token')
+    request.field('client_id', this.config.clientId)
+    request.field('refresh_token', refreshToken)
+    this.#authenticateClient(request, tokenUrl)
+
+    if (typeof callback === 'function') {
+      callback(request)
+    }
+
+    const body = await this.#postTokenRequest(request)
+    if (!body.access_token) {
+      throw new E_ENTRA_TOKEN_REFRESH_FAILED()
+    }
+
+    return {
+      token: body.access_token,
+      type: body.token_type,
+      expiresIn: body.expires_in,
+      expiresAt: body.expires_in ? new Date(Date.now() + body.expires_in * 1000) : undefined,
+      refreshToken: body.refresh_token ?? refreshToken,
+      scope: body.scope,
+    }
+  }
+
+  /**
+   * Sends a token request and turns a refusal into a typed error.
+   */
+  async #postTokenRequest(request: ApiRequest) {
+    try {
+      return await request.post()
+    } catch (error) {
+      const response: Response | undefined = (error as { response?: Response }).response
+      const details = await response?.json().catch(() => undefined)
+      throw new E_ENTRA_TOKEN_REFRESH_FAILED((details ?? {}) as EntraTokenErrorDetails, {
+        cause: error,
+      })
+    }
   }
 
   /**
