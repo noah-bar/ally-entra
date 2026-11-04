@@ -10,6 +10,10 @@ export type EntraIdTokenClaims = JWTPayload & {
   name?: string
   email?: string
   preferred_username?: string
+  /**
+   * Only present when the `login_hint` optional claim is enabled.
+   */
+  login_hint?: string
   roles?: string[]
   groups?: string[]
   hasgroups?: boolean
@@ -34,6 +38,22 @@ export type EntraAccessToken = {
 }
 
 export type EntraScopes = string
+
+/**
+ * Options of the Microsoft sign-out.
+ */
+export type EntraLogoutOptions = {
+  /**
+   * Where Microsoft sends the user afterwards. It must be registered as a
+   * redirect URI of the application.
+   */
+  postLogoutRedirectUrl?: string
+  /**
+   * Signs out without an account picker. It must be the value of the
+   * `login_hint` claim, never a user principal name.
+   */
+  logoutHint?: string
+}
 
 /**
  * Tokens obtained from a refresh token. Microsoft documents the ID token

@@ -18,6 +18,7 @@ import type {
   EntraAccessToken,
   EntraCertificate,
   EntraConfig,
+  EntraLogoutOptions,
   EntraRefreshedToken,
   EntraScopes,
   EntraUser,
@@ -111,6 +112,23 @@ export class EntraDriver
       'client_assertion',
       createClientAssertion(certificate, { clientId, audience: tokenUrl })
     )
+  }
+
+  /**
+   * Returns the address to redirect the user to, in order to end the Microsoft
+   * session. The application has to end its own session too.
+   */
+  logoutUrl(options: EntraLogoutOptions = {}) {
+    const url = new URL(`${LOGIN_URL}/${this.config.tenantId}/oauth2/v2.0/logout`)
+
+    if (options.postLogoutRedirectUrl) {
+      url.searchParams.set('post_logout_redirect_uri', options.postLogoutRedirectUrl)
+    }
+    if (options.logoutHint) {
+      url.searchParams.set('logout_hint', options.logoutHint)
+    }
+
+    return url.toString()
   }
 
   accessDenied() {

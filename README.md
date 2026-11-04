@@ -9,6 +9,7 @@ It signs users in with OpenID Connect, validates what Microsoft returns, and giv
 - **Authorization data:** `tenantId`, `roles` and `groups`, with groups overage detection
 - **Client secret or certificate** authentication
 - **Token refresh** with `refreshAccessToken()`
+- **Sign-out** from Microsoft with `logoutUrl()`
 - **Profile photo** as `avatarUrl`
 - **Readable errors** that carry the Microsoft `AADSTS` code
 
@@ -174,6 +175,29 @@ export async function refreshTokens({ ally }: HttpContext, storedRefreshToken: s
 
 The result has no `tenantId`, `roles` or `groups`. Microsoft advises against relying on an ID token obtained from a refresh, so the driver leaves it out. These values are only as recent as the last sign-in.
 
+## Signing out
+
+Ending your own session does not end the Microsoft one, so the user may be signed back in without any prompt. To sign them out completely, do both:
+
+```ts
+import router from '@adonisjs/core/services/router'
+import env from '#start/env'
+
+router.post('/logout', ({ ally, response, session }) => {
+  session.clear()
+
+  const logoutUrl = ally.use('entra').logoutUrl({
+    postLogoutRedirectUrl: `${env.get('APP_URL')}/`,
+  })
+
+  return response.redirect(logoutUrl)
+})
+```
+
+Microsoft only redirects to an address registered as a redirect URI of your application. Otherwise, it shows its own sign-out page.
+
+To skip the account picker, enable the `login_hint` optional claim in **Token configuration**, store `user.token.idTokenClaims.login_hint` at sign-in, and pass it as `logoutHint`.
+
 ## Certificate authentication
 
 Use a certificate instead of a client secret by passing it to the driver. The private key stays on your server.
@@ -288,7 +312,6 @@ The driver validates the sign-in, but you remain responsible for:
 Not supported yet:
 
 - fetching the groups of a user in overage
-- sign-out with Microsoft
 - national clouds, such as Azure Government or Azure China
 - Azure AD B2C
 

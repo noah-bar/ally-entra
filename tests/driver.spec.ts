@@ -125,6 +125,36 @@ test.group('EntraDriver | redirect', () => {
   })
 })
 
+test.group('EntraDriver | logoutUrl', () => {
+  const LOGOUT_URL = `https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/logout`
+
+  test('points to the logout endpoint of the tenant', ({ assert }) => {
+    const driver = driverFor(createContext())
+
+    assert.equal(driver.logoutUrl(), LOGOUT_URL)
+    assert.equal(driver.logoutUrl({ postLogoutRedirectUrl: '', logoutHint: '' }), LOGOUT_URL)
+  })
+
+  test('encodes the redirect address and the hint', ({ assert }) => {
+    const driver = driverFor(createContext())
+
+    const url = new URL(
+      driver.logoutUrl({
+        postLogoutRedirectUrl: 'https://app.test/bye?from=app&x=1',
+        logoutHint: 'hint&value',
+      })
+    )
+
+    assert.equal(`${url.origin}${url.pathname}`, LOGOUT_URL)
+    assert.equal(
+      url.searchParams.get('post_logout_redirect_uri'),
+      'https://app.test/bye?from=app&x=1'
+    )
+    assert.equal(url.searchParams.get('logout_hint'), 'hint&value')
+    assert.lengthOf([...url.searchParams.keys()], 2)
+  })
+})
+
 test.group('EntraDriver | callback checks', () => {
   test('accessDenied is true for access_denied', ({ assert }) => {
     const driver = driverFor(createContext('/callback?error=access_denied'))
