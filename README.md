@@ -82,7 +82,7 @@ router.get('/oauth/entra/callback', async ({ ally }) => {
     return 'The sign-in expired, please try again'
   }
   if (entra.hasError()) {
-    return entra.getError()
+    return 'The sign-in failed, please try again'
   }
 
   const user = await entra.user()
@@ -112,7 +112,13 @@ router.get('/oauth/entra/callback', async ({ ally }) => {
 | `token` | The tokens, with `idTokenClaims` holding the validated claims |
 | `original` | The raw Graph response, such as `original.userPrincipalName` |
 
+> [!CAUTION]
+> `user` holds the tokens of the user, so never return it as a whole from a route or log it. Pick the properties you need.
+
 `userFromToken()` only returns the Graph data, since there is no ID token to read `tenantId`, `roles` and `groups` from.
+
+> [!CAUTION]
+> **Never use `userFromToken()` to authenticate a user.** It accepts any valid Microsoft Graph token, even one issued to another application or from another tenant, and ignores `allowedTenants`. A malicious application could use a token obtained from a victim to sign in as them. Only use it with a token your application obtained itself.
 
 > [!IMPORTANT]
 > Identify users with `tenantId` and `id`, never with `email` or `userPrincipalName`. Those can change and are not always verified.
@@ -257,7 +263,7 @@ The errors are available from the `errors` export.
 
 | Error | Status | When |
 | --- | --- | --- |
-| `E_ENTRA_REQUEST_FAILED` | 401 or 500 | Microsoft refused a sign-in or a token request |
+| `E_ENTRA_REQUEST_FAILED` | 401 or 500 | Microsoft refused a sign-in, a token request or the Graph profile |
 | `E_ENTRA_INVALID_ID_TOKEN` | 401 | The ID token is missing or failed validation |
 | `E_ENTRA_TENANT_NOT_ALLOWED` | 403 | The tenant is not in `allowedTenants` |
 | `E_ENTRA_INVALID_CONFIG` | 500 | The driver configuration is invalid, at boot |
@@ -280,7 +286,8 @@ import { errors } from '@hxtc/ally-entra'
 
 export async function callback({ ally, response }: HttpContext) {
   try {
-    return await ally.use('entra').user()
+    const user = await ally.use('entra').user()
+    return { id: user.id, name: user.name }
   } catch (error) {
     if (error instanceof errors.E_ENTRA_REQUEST_FAILED) {
       logger.error({ code: error.aadstsCode, traceId: error.traceId }, error.message)
@@ -307,6 +314,8 @@ The driver validates the sign-in, but you remain responsible for:
 
 - authorizing users, as a valid Microsoft sign-in does not mean they may use your application
 - storing refresh tokens and private keys securely
+- not logging the driver object, which holds your credentials
+- not enabling the Ally debug output in production, as it can print tokens
 - enabling **Assignment required** in **Enterprise applications**, if only assigned users should be able to sign in
 
 ## Limitations
