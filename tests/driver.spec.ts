@@ -85,6 +85,13 @@ test.group('EntraDriver | configuration', () => {
         /Invalid Entra driver configuration/
       )
     })
+
+  test('refuses scopes without openid', ({ assert }) => {
+    assert.throws(
+      () => EntraService({ ...config, scopes: ['profile', 'User.Read'] }),
+      /"scopes" must include "openid"/
+    )
+  })
 })
 
 test.group('EntraDriver | redirect', () => {
@@ -113,6 +120,27 @@ test.group('EntraDriver | redirect', () => {
 
     assert.isAtLeast(first.nonce.length, 32)
     assert.notEqual(first.nonce, second.nonce)
+  })
+
+  test('requests the configured scopes instead of the default ones', async ({ assert }) => {
+    const { location } = await startSignIn({ ...config, scopes: ['openid', 'offline_access'] })
+
+    assert.deepEqual(location.searchParams.getAll('scope'), ['openid offline_access'])
+  })
+
+  test('lets the caller set the sign-in page parameters', async ({ assert }) => {
+    const url = new URL(
+      await driverFor(createContext()).redirectUrl((request) => {
+        request.param('prompt', 'select_account')
+        request.param('login_hint', 'ada@contoso.com')
+        request.param('domain_hint', 'contoso.com')
+      })
+    )
+
+    assert.deepEqual(url.searchParams.getAll('prompt'), ['select_account'])
+    assert.deepEqual(url.searchParams.getAll('login_hint'), ['ada@contoso.com'])
+    assert.deepEqual(url.searchParams.getAll('domain_hint'), ['contoso.com'])
+    assert.deepEqual(url.searchParams.getAll('scope'), ['openid profile email User.Read'])
   })
 
   test('lets the caller replace the default scopes', async ({ assert }) => {

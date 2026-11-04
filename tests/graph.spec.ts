@@ -47,6 +47,16 @@ test.group('Microsoft Graph | avatar', (group) => {
     assert.equal(photoRequest.headers.get('authorization'), 'Bearer access-token')
   })
 
+  test('does not request the photo when fetchAvatar is false', async ({ assert }) => {
+    const user = await userWith(
+      { [SIZED_PHOTO_URL]: photoReply() },
+      { ...config, fetchAvatar: false }
+    )
+
+    assert.isNull(user.avatarUrl)
+    assert.deepEqual(photoRequests(), [])
+  })
+
   test('falls back to the default photo when the small one is missing', async ({ assert }) => {
     const user = await userWith({
       [SIZED_PHOTO_URL]: statusReply(404),

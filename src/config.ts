@@ -23,7 +23,7 @@ export function assertValidConfig(config: EntraConfig) {
     return
   }
 
-  const { tenantId, allowedTenants, clientSecret, certificate } = config
+  const { tenantId, allowedTenants, clientSecret, certificate, scopes } = config
 
   if (Boolean(clientSecret) === Boolean(certificate)) {
     throw new E_ENTRA_INVALID_CONFIG(['define either "clientSecret" or "certificate"'])
@@ -51,6 +51,9 @@ export function assertValidConfig(config: EntraConfig) {
   }
   if (allowedTenants?.some((tenant) => !TENANT_ID_PATTERN.test(tenant))) {
     throw new E_ENTRA_INVALID_CONFIG(['"allowedTenants" must only contain tenant GUIDs'])
+  }
+  if (scopes && !scopes.includes('openid')) {
+    throw new E_ENTRA_INVALID_CONFIG(['"scopes" must include "openid"'])
   }
 
   validConfigs.add(config)

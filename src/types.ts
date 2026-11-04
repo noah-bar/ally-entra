@@ -104,6 +104,15 @@ export type EntraConfig = EntraCredentials & {
    * The tenant IDs accepted when `tenantId` is a shared authority.
    */
   allowedTenants?: string[]
+  /**
+   * The scopes requested at sign-in. They replace the default ones, and must
+   * include `openid`.
+   */
+  scopes?: EntraScopes[]
+  /**
+   * Set it to `false` to skip the photo requests. `avatarUrl` is then `null`.
+   */
+  fetchAvatar?: boolean
   authorizeUrl?: string
   accessTokenUrl?: string
   userInfoUrl?: string

@@ -24,6 +24,8 @@ import type {
   EntraUser,
 } from './types.js'
 
+const DEFAULT_SCOPES: EntraScopes[] = ['openid', 'profile', 'email', 'User.Read']
+
 /**
  * Ally driver for Microsoft Entra ID.
  */
@@ -86,7 +88,7 @@ export class EntraDriver
       httpOnly: true,
     })
 
-    request.scopes(['openid', 'profile', 'email', 'User.Read'])
+    request.scopes(this.config.scopes ?? DEFAULT_SCOPES)
     request.param('response_type', 'code')
     request.param('nonce', nonce)
   }
@@ -267,7 +269,10 @@ export class EntraDriver
     const graph = new GraphClient(this.config.userInfoUrl || this.userInfoUrl, token, (url) =>
       this.httpClient(url)
     )
-    const [body, avatarUrl] = await Promise.all([graph.fetchUser(callback), fetchAvatar(graph)])
+    const [body, avatarUrl] = await Promise.all([
+      graph.fetchUser(callback),
+      this.config.fetchAvatar === false ? null : fetchAvatar(graph),
+    ])
     const name = body.displayName ?? body.userPrincipalName
 
     return {
