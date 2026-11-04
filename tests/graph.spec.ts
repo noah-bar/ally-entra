@@ -232,6 +232,7 @@ test.group('Microsoft Graph | avatar', (group) => {
         )
 
       assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
+      assert.equal(failure!.message, 'Microsoft could not be reached')
       assert.equal((failure!.cause as Error).message, 'Request timed out')
       assert.notInclude(inspect(failure, { depth: 20, showHidden: true }), 'secret-access-token')
     } finally {

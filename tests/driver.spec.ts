@@ -521,6 +521,7 @@ test.group('EntraDriver | user', (group) => {
       )
 
       assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
+      assert.equal(failure!.message, 'Microsoft could not be reached')
       assert.equal(failure!.status, 500)
       assert.isFalse(failure!.requiresSignIn)
     })

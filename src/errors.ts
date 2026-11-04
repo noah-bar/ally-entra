@@ -67,8 +67,8 @@ function readAadstsCode({ error_codes: codes, error_description: description }: 
 }
 
 /**
- * Microsoft refused a sign-in or a token request. The message only holds the
- * error codes: the callback query string can be forged by anyone, so the free
+ * Microsoft refused a sign-in or a token request, or could not be reached. The
+ * message only holds the error codes: the callback query string can be forged by anyone, so the free
  * text description stays out of it.
  */
 export const E_ENTRA_REQUEST_FAILED = class extends Exception {
@@ -95,8 +95,11 @@ export const E_ENTRA_REQUEST_FAILED = class extends Exception {
     const aadstsCode = readAadstsCode(details)
     const safeError = error && /^\w+$/.test(error) ? error : 'unexpected response'
     const suffix = aadstsCode ? ` (${aadstsCode})` : ''
+    const message = options?.cause
+      ? 'Microsoft could not be reached'
+      : `Microsoft refused the request: ${safeError}${suffix}`
 
-    super(`Microsoft refused the request: ${safeError}${suffix}`, {
+    super(message, {
       ...options,
       status: SIGN_IN_REQUIRED_ERRORS.has(error ?? '') ? 401 : 500,
     })

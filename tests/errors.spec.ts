@@ -156,6 +156,7 @@ test.group('EntraDriver | sign-in errors', (group) => {
     const failure = await signInFailure(await callbackDriver({ code: 'code' }))
 
     assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
+    assert.equal(failure!.message, 'Microsoft could not be reached')
     assert.match((failure!.cause as Error).message, /Unexpected request/)
   })
 
