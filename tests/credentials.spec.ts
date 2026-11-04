@@ -27,6 +27,26 @@ const withSecret: EntraConfig = { ...base, clientSecret: 'client-secret' }
 const withCertificate: EntraConfig = { ...base, certificate }
 
 test.group('EntraDriver | credentials configuration', () => {
+  test('checks the certificate once, not for each request', ({ assert }) => {
+    let reads = 0
+    const counted: EntraConfig = {
+      ...base,
+      certificate: {
+        certificate: certificate.certificate,
+        get privateKey() {
+          reads++
+          return certificate.privateKey
+        },
+      },
+    }
+
+    const createDriver = EntraService(counted)
+    createDriver(createContext())
+    createDriver(createContext())
+
+    assert.equal(reads, 1)
+  })
+
   test('refuses {title}')
     .with([
       { title: 'no credentials', credentials: {} },

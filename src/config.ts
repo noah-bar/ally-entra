@@ -11,9 +11,18 @@ const SHARED_AUTHORITIES = ['common', 'organizations', 'consumers']
 const TENANT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
+ * Configurations already checked, since a driver is created for each request.
+ */
+const validConfigs = new WeakSet<EntraConfig>()
+
+/**
  * Refuses a configuration that would accept unexpected tenants.
  */
 export function assertValidConfig(config: EntraConfig) {
+  if (validConfigs.has(config)) {
+    return
+  }
+
   const { tenantId, allowedTenants, clientSecret, certificate } = config
 
   if (Boolean(clientSecret) === Boolean(certificate)) {
@@ -43,4 +52,6 @@ export function assertValidConfig(config: EntraConfig) {
   if (allowedTenants?.some((tenant) => !TENANT_ID_PATTERN.test(tenant))) {
     throw new E_ENTRA_INVALID_CONFIG(['"allowedTenants" must only contain tenant GUIDs'])
   }
+
+  validConfigs.add(config)
 }
