@@ -4,10 +4,12 @@ import { createError, Exception } from '@adonisjs/core/exceptions'
  * Microsoft errors meaning that the user has to sign in again.
  */
 const SIGN_IN_REQUIRED_ERRORS = new Set([
+  'access_denied',
   'consent_required',
   'interaction_required',
   'invalid_grant',
   'login_required',
+  'missing_refresh_token',
 ])
 
 /**
@@ -38,37 +40,72 @@ export const E_ENTRA_TENANT_NOT_ALLOWED = createError<[string]>(
 )
 
 /**
- * The error body returned by the Microsoft token endpoint.
+ * The error details returned by Microsoft, on the token endpoint or in the
+ * query string of the callback.
  */
-export type EntraTokenErrorDetails = {
-  error?: string
-  error_description?: string
-  trace_id?: string
-  correlation_id?: string
+export type EntraErrorDetails = {
+  error?: unknown
+  error_description?: unknown
+  error_codes?: unknown
+  trace_id?: unknown
+  correlation_id?: unknown
+}
+
+const asText = (value: unknown) => (typeof value === 'string' ? value : undefined)
+
+/**
+ * Reads the `AADSTS` code, which is what the Microsoft documentation refers to.
+ */
+function readAadstsCode({ error_codes: codes, error_description: description }: EntraErrorDetails) {
+  const code: unknown = Array.isArray(codes) ? codes[0] : undefined
+  if (typeof code === 'number') {
+    return `AADSTS${code}`
+  }
+
+  return asText(description)?.match(/\bAADSTS\d+\b/)?.[0]
 }
 
 /**
- * Microsoft did not exchange the refresh token for new tokens.
+ * Microsoft refused a sign-in or a token request. The message only holds the
+ * error codes: the callback query string can be forged by anyone, so the free
+ * text description stays out of it.
  */
 // eslint-disable-next-line @typescript-eslint/naming-convention
-export class E_ENTRA_TOKEN_REFRESH_FAILED extends Exception {
-  static status = 401
-  static code = 'E_ENTRA_TOKEN_REFRESH_FAILED'
+export class E_ENTRA_REQUEST_FAILED extends Exception {
+  static code = 'E_ENTRA_REQUEST_FAILED'
 
   /**
    * The Microsoft error code, such as `invalid_grant`.
    */
   microsoftError?: string
+  /**
+   * The detailed Microsoft code, such as `AADSTS7000215`.
+   */
+  aadstsCode?: string
   description?: string
   traceId?: string
   correlationId?: string
+  /**
+   * The HTTP status of the Microsoft response.
+   */
+  responseStatus?: number
 
-  constructor(details: EntraTokenErrorDetails = {}, options?: ErrorOptions) {
-    super(`Unable to refresh the Entra tokens: ${details.error ?? 'unexpected response'}`, options)
-    this.microsoftError = details.error
-    this.description = details.error_description
-    this.traceId = details.trace_id
-    this.correlationId = details.correlation_id
+  constructor(details: EntraErrorDetails = {}, options?: ErrorOptions) {
+    const error = asText(details.error)
+    const aadstsCode = readAadstsCode(details)
+    const safeError = error && /^\w+$/.test(error) ? error : 'unexpected response'
+    const suffix = aadstsCode ? ` (${aadstsCode})` : ''
+
+    super(`Microsoft refused the request: ${safeError}${suffix}`, {
+      ...options,
+      status: SIGN_IN_REQUIRED_ERRORS.has(error ?? '') ? 401 : 500,
+    })
+
+    this.microsoftError = error
+    this.aadstsCode = aadstsCode
+    this.description = asText(details.error_description)
+    this.traceId = asText(details.trace_id)
+    this.correlationId = asText(details.correlation_id)
   }
 
   /**

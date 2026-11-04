@@ -519,7 +519,7 @@ test.group('EntraDriver | user', (group) => {
     mock()
     const driver = await signedInDriver()
 
-    await assert.rejects(() => driver.user(), /400/)
+    await assert.rejects(() => driver.user(), errors.E_ENTRA_REQUEST_FAILED)
     assert.deepEqual(
       signInRequests().map(({ url }) => url),
       [TOKEN_URL]

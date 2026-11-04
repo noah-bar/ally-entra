@@ -6,11 +6,12 @@ import type {
   ApiRequestContract,
   RedirectRequestContract,
 } from '@adonisjs/ally/types'
+import { Exception } from '@adonisjs/core/exceptions'
 import type { HttpContext } from '@adonisjs/core/http'
 import { fetchAvatar } from './avatar.js'
 import { CLIENT_ASSERTION_TYPE, createClientAssertion } from './client_assertion.js'
 import { assertValidConfig, LOGIN_URL } from './config.js'
-import { E_ENTRA_TOKEN_REFRESH_FAILED, type EntraTokenErrorDetails } from './errors.js'
+import { E_ENTRA_REQUEST_FAILED, type EntraErrorDetails } from './errors.js'
 import { GRAPH_ME_URL, GraphClient } from './graph.js'
 import { verifyIdToken } from './id_token.js'
 import type {
@@ -128,6 +129,17 @@ export class EntraDriver
    * Exchanges the authorization code for tokens and validates the ID token.
    */
   async accessToken(callback?: (request: ApiRequestContract) => void) {
+    /**
+     * Only trusted after the state check, since anyone can forge this URL.
+     */
+    const { request } = this.ctx
+    if (request.input(this.errorParamName) && !this.stateMisMatch()) {
+      throw new E_ENTRA_REQUEST_FAILED({
+        error: request.input(this.errorParamName),
+        error_description: request.input('error_description'),
+      })
+    }
+
     const token = await super.accessToken(callback)
     const idTokenClaims = await verifyIdToken(token.id_token, {
       clientId: this.config.clientId,
@@ -140,6 +152,26 @@ export class EntraDriver
   }
 
   /**
+   * Exchanges the authorization code, and turns a refusal into a typed error.
+   * Errors thrown by the caller callback or by Ally itself are left untouched.
+   */
+  async getAccessToken(callback?: (request: ApiRequestContract) => void) {
+    let isConfigured = false
+
+    try {
+      return await super.getAccessToken((request) => {
+        callback?.(request)
+        isConfigured = true
+      })
+    } catch (error) {
+      if (!isConfigured || error instanceof Exception) {
+        throw error
+      }
+      throw await this.#toRequestError(error)
+    }
+  }
+
+  /**
    * Exchanges a refresh token for new tokens. It requires the `offline_access`
    * scope at sign-in, and the returned `refreshToken` must replace the old one.
    */
@@ -148,7 +180,7 @@ export class EntraDriver
     callback?: (request: ApiRequestContract) => void
   ): Promise<EntraRefreshedToken> {
     if (!refreshToken) {
-      throw new E_ENTRA_TOKEN_REFRESH_FAILED({ error: 'missing_refresh_token' })
+      throw new E_ENTRA_REQUEST_FAILED({ error: 'missing_refresh_token' })
     }
 
     const tokenUrl = this.config.accessTokenUrl || this.accessTokenUrl
@@ -165,7 +197,7 @@ export class EntraDriver
 
     const body = await this.#postTokenRequest(request)
     if (!body.access_token) {
-      throw new E_ENTRA_TOKEN_REFRESH_FAILED()
+      throw new E_ENTRA_REQUEST_FAILED()
     }
 
     return {
@@ -185,12 +217,28 @@ export class EntraDriver
     try {
       return await request.post()
     } catch (error) {
-      const response: Response | undefined = (error as { response?: Response }).response
-      const details = await response?.json().catch(() => undefined)
-      throw new E_ENTRA_TOKEN_REFRESH_FAILED((details ?? {}) as EntraTokenErrorDetails, {
-        cause: error,
-      })
+      throw await this.#toRequestError(error)
     }
+  }
+
+  /**
+   * Reads the Microsoft error details from a failed token request. A refused
+   * request is not kept as the cause, since it holds the credentials and could
+   * end up in the logs.
+   */
+  async #toRequestError(error: unknown) {
+    const response: Response | undefined = (error as { response?: Response }).response
+    if (!response) {
+      return new E_ENTRA_REQUEST_FAILED({}, { cause: error })
+    }
+
+    const details: unknown = await response.json().catch(() => undefined)
+    const failure = new E_ENTRA_REQUEST_FAILED(
+      typeof details === 'object' && details !== null ? (details as EntraErrorDetails) : {}
+    )
+    failure.responseStatus = response.status
+
+    return failure
   }
 
   /**

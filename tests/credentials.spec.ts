@@ -197,7 +197,7 @@ test.group('EntraDriver | refreshAccessToken', (group) => {
   const refreshFailure = (driver: ReturnType<typeof driverFor>) =>
     driver.refreshAccessToken('old-refresh-token').then(
       () => undefined,
-      (error: errors.E_ENTRA_TOKEN_REFRESH_FAILED) => error
+      (error: errors.E_ENTRA_REQUEST_FAILED) => error
     )
 
   group.each.setup(() => {
@@ -283,7 +283,7 @@ test.group('EntraDriver | refreshAccessToken', (group) => {
 
       const failure = await refreshFailure(driverFor())
 
-      assert.instanceOf(failure, errors.E_ENTRA_TOKEN_REFRESH_FAILED)
+      assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
       assert.isTrue(failure!.requiresSignIn)
     })
 
@@ -298,7 +298,7 @@ test.group('EntraDriver | refreshAccessToken', (group) => {
 
     const failure = await refreshFailure(driverFor())
 
-    assert.instanceOf(failure, errors.E_ENTRA_TOKEN_REFRESH_FAILED)
+    assert.instanceOf(failure, errors.E_ENTRA_REQUEST_FAILED)
     assert.equal(failure!.microsoftError, 'invalid_client')
     assert.equal(failure!.description, 'AADSTS7000215: Invalid client secret')
     assert.equal(failure!.traceId, 'trace-id')
@@ -318,15 +318,12 @@ test.group('EntraDriver | refreshAccessToken', (group) => {
 
       await assert.rejects(
         () => driverFor().refreshAccessToken('old-refresh-token'),
-        errors.E_ENTRA_TOKEN_REFRESH_FAILED
+        errors.E_ENTRA_REQUEST_FAILED
       )
     })
 
   test('refuses an empty refresh token without calling Microsoft', async ({ assert }) => {
-    await assert.rejects(
-      () => driverFor().refreshAccessToken(''),
-      errors.E_ENTRA_TOKEN_REFRESH_FAILED
-    )
+    await assert.rejects(() => driverFor().refreshAccessToken(''), errors.E_ENTRA_REQUEST_FAILED)
     assert.lengthOf(http.requests, 0)
   })
 })
